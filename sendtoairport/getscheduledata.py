@@ -1,5 +1,6 @@
 # coding:utf-8
 import pymssql
+import json
 
 
 def getquredate(args):
@@ -22,5 +23,12 @@ def getquredate(args):
         result['date'] = "2017-07-16"
         result['driver'] = None
         jsonData.append(result)
+    # jsondatar = json.dumps(jsonData, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    # f = open('unceshijsondata9.json', 'w+')
+    # # 写数据
+    # f.write(jsondatar)
+    # # 关闭文件
+    # f.close()
+
     return jsonData
 
