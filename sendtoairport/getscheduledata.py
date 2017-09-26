@@ -4,10 +4,10 @@ import json
 
 
 def getquredate(args):
-    conn = pymssql.connect("120.27.225.54", "devops", "!qaz@wsx#edc123", "TransferDB_V2_Driver", charset="utf8")
+    conn = pymssql.connect("116.62.58.212", "bwcops", "tRansfeR@#bw2017!", "TransferDB_V3", charset="utf8")
     cur =conn.cursor()
-    sql = "SELECT BID,PickupLatitude lat,PickupLongitude lng,SeatNum seatnum,TimeTable timetable,CAST(PickupTime AS DATE) AS [date] " \
-          "FROM dbo.Booking WHERE BookingType = 'ClearPort' and TimeTable='TimeTable8' and CAST(PickupTime AS DATE)='{}'".format(args)
+    sql = "SELECT BookingID,PickupLatitude lat,PickupLongitude lng,SeatNum seatnum,TimeTable timetable,CAST(PickupTime AS DATE) AS [date] " \
+          "FROM dbo.Booking WHERE TripType = 2 and TimeTable='TimeTable9' and CAST(PickupTime AS DATE)='{}'".format(args)
     cur.execute(sql)
     data = cur.fetchall()
     cur.close()

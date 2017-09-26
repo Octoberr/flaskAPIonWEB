@@ -17,11 +17,12 @@ import numpy as np
 import copy
 from sklearn.neighbors import NearestNeighbors
 from compiler.ast import flatten
-
+# 内部引用
 import knapsack
 import auxfn
 import mapAPI
 from recomTimeOnTheBus import eastandwestside
+from recomTimeOnTheBus import getneighbor
 
 AMAPAIRPORTCOORDINATE = [30.574590, 103.955020]
 MAXSEATNUM5 = 5
@@ -39,12 +40,15 @@ highlat = 30.674533
 
 class DIST:
 
-    def getTheSpecifyAndNormal(self,specifyDriverDic, normalPassengerDic, resdict):
+    def getTheSpecifyAndNormal(self, normalPassengerDic, resdict):
+        # 创建list来保存指定司机的订单
+        specifyDriverDic = []
         for element in resdict:
             if 'driver' not in element.keys() or element['driver'] is None or element['driver'] is u"":
                 normalPassengerDic.append(element)
             else:
                 specifyDriverDic.append(element)
+        return specifyDriverDic
 
     def leftandrightgetonthecar(self, getonthecar, northOrderID, northOrderLoc, ):
         leftgetonthecar = []
@@ -60,7 +64,7 @@ class DIST:
             getonthecar.append(rightgetonthtecar)
 
     # 获取指定上车司机的乘客订单
-    def getTheSpecifyDriverOrder(self, northOrderID, northOrderLoc, northOrderSeatnum, specifyDriverDic):
+    def getTheSpecifyDriverOrder(self, specifyDriverDic):
         specifyOrderLoc = []
         specifyOrderID = []
         specifyOrderSeatNo = []
@@ -78,13 +82,17 @@ class DIST:
             gglng = round(loc.lng, 6)
             poid = element['BID']
             seatnum = element['seatnum']
-            tmp.append(gglat)
-            tmp.append(gglng)
-            driverID = element['driver']
-            specifyOrderLoc.append(tuple(tmp))  # [(),(),()]
-            specifyOrderID.append(poid)         # [a,b,c]
-            specifyOrderSeatNo.append(seatnum)      # [1,2,3]
-            specifyDriver.append(driverID)         # [101,201,301]
+            if seatnum == MAXSEATNUM5 or seatnum == MAXSEATNUM6:
+                carSpecifyList.append([poid])
+                continue
+            else:
+                tmp.append(gglat)
+                tmp.append(gglng)
+                driverID = element['driver']
+                specifyOrderLoc.append(tuple(tmp))  # [(),(),()]
+                specifyOrderID.append(poid)         # [a,b,c]
+                specifyOrderSeatNo.append(seatnum)      # [1,2,3]
+                specifyDriver.append(driverID)         # [101,201,301]
         dupSpecifyDriver = list(set(specifyDriver))  # 获得唯一的司机标识
         for element1 in dupSpecifyDriver:
             repeat = auxfn.getAllIndices(element1, specifyDriver)
@@ -102,15 +110,26 @@ class DIST:
             if sum(getSpecifySN[i]) <= MAXSEATNUM6:
                 carSpecifyList.append(getSpecifyID[i])
             else:  # 指定的某个司机的人数大于6个人的情况，使用背包装金算法分人
+                sixdel = []
                 tmpspecialID = copy.copy(getSpecifyID[i])
                 tmpspecialseats = copy.copy(getSpecifySN[i])
+                # for seatidx in range(len(tmpspecialseats)):
+                #     if tmpspecialseats[seatidx] >= 5:
+                #         carSpecifyList.append([tmpspecialID[seatidx]])
+                #         sixdel.append(seatidx)
+                # for sl in reversed(sixdel):
+                #     del(tmpspecialID[sl])
+                #     del (tmpspecialseats[sl])
                 allseatnums = sum(tmpspecialseats)
+                # if allseatnums <= MAXSEATNUM6:
+                #     carSpecifyList.append(tmpspecialID)
+                #     continue
                 needcar = allseatnums/MAXSEATNUM6
                 leftpas = allseatnums % MAXSEATNUM6
-                if leftpas is 0:  # 刚好能坐整数辆车
+                if leftpas == 0:  # 刚好能坐整数辆车
                     for n in range(needcar):
                         sixpassengeer = knapsack.zeroOneKnapsack(tmpspecialseats, MAXSEATNUM6)
-                        storeindex = [j for j, x in enumerate(sixpassengeer[1]) if x is 1]
+                        storeindex = [j for j, x in enumerate(sixpassengeer[1]) if x == 1]
                         tmpstoreID = []
                         for idx in storeindex:
                             tmpstoreID.append(tmpspecialID[idx])
@@ -122,7 +141,7 @@ class DIST:
                     for m in range(needcar):
                         average = allseatnums/(needcar+1)
                         averagepass = knapsack.zeroOneKnapsack(tmpspecialseats, average)
-                        mstoreindex = [k for k, l in enumerate(averagepass[1]) if l is 1]
+                        mstoreindex = [k for k, l in enumerate(averagepass[1]) if l == 1]
                         mtmpstoreID = []
                         for idx in mstoreindex:
                             mtmpstoreID.append(tmpspecialID[idx])
@@ -167,113 +186,145 @@ class DIST:
         #                     del (northOrderSeatnum[element3])
         return carSpecifyList
 
-    # 初步处理数据，传入json字符串resdict,订单人数=5/6的存入getonthecar,getonthecarloc,getonthecarseatnum
-    def getAllRepeatData(self, repeatpoid, repeatloc, repeatseatnum, getonthecar, getonthecarloc, getonthecarseatnum, resdict):
-        for element in resdict:
-            tmp = []
-            bdLat = element['bdlat']
-            bdLng = element['bdlng']
-            loc = auxfn.BD2AMap(bdLat, bdLng)
-            gglat = round(loc.lat, 6)
-            gglng = round(loc.lng, 6)
-            poid = element['BID']
-            seatnum = element['seatnum']
-            tmp.append(gglat)
-            tmp.append(gglng)
-            if seatnum is 6 or seatnum is 5:
-                getonthecar.append([poid])
-                getonthecarloc.append(tuple(tmp))
-                getonthecarseatnum.append([seatnum])
+    # 初步处理数据，传入json字符串resdict,订单人数=5/6的存入提前上车的数组advancegetonthecar
+    def getAllRepeatData(self, advanceGetOnTheCar, normalPassengerDic):
+        repeatdicInfo = []
+        for i in range(len(normalPassengerDic)):
+            orderdict = {}
+            seatnum = normalPassengerDic[i]['seatnum']
+            if seatnum == 6 or seatnum == 5:
+                advanceGetOnTheCar.append([normalPassengerDic[i]['BID']])
             else:
-                repeatpoid.append(poid)
-                repeatseatnum.append(seatnum)
-                repeatloc.append(tuple(tmp))
+                bdlat = round(normalPassengerDic[i]['bdlat'], 6)
+                bdlng = round(normalPassengerDic[i]['bdlng'], 6)
+                orderdict['loc'] = (bdlat, bdlng)
+                orderdict['bid'] = [normalPassengerDic[i]['BID']]
+                orderdict['seatno'] = [seatnum]
+                repeatdicInfo.append(orderdict)
+        return repeatdicInfo
+        # for element in normalPassengerDic:
+        #     tmp = []
+        #     bdLat = element['bdlat']
+        #     bdLng = element['bdlng']
+        #     loc = auxfn.BD2AMap(bdLat, bdLng)
+        #     gglat = round(loc.lat, 6)
+        #     gglng = round(loc.lng, 6)
+        #     poid = element['BID']
+        #     seatnum = element['seatnum']
+        #     tmp.append(gglat)
+        #     tmp.append(gglng)
+        #     if seatnum is 6 or seatnum is 5:
+        #         getonthecar.append([poid])
+        #         getonthecarloc.append(tuple(tmp))
+        #         getonthecarseatnum.append([seatnum])
+        #     else:
+        #         repeatpoid.append(poid)
+        #         repeatseatnum.append(seatnum)
+        #         repeatloc.append(tuple(tmp))
 
-    # 第二次处理数据，将同一地点的订单集中在一起，duplicateLoc=[[(lat,lng),(lat,lng)]],duplicateorderid=[[ordea,orderb],[orderc]]
-    def getDuplicateData(self, repeatOrderID, repeatloc, repeatSeatnum, duplicateOrderid, duplicateSeatNum):
-        duplicateLoc = list(set(repeatloc))
-        for element in duplicateLoc:
-            repeat = auxfn.getAllIndices(element, repeatloc)
-            orderidtmp = []
-            seatnumtmp = []
-            for element1 in repeat:
-                orderidtmp.append(repeatOrderID[element1])
-                seatnumtmp.append(repeatSeatnum[element1])
-            duplicateOrderid.append(orderidtmp)
-            duplicateSeatNum.append(seatnumtmp)
+    # 合并订单：100m范围
+    def getDuplicateData(self, repeatdicInfo):
+        # duplicateLoc = list(set(repeatloc))
+        # for element in duplicateLoc:
+        #     repeat = auxfn.getAllIndices(element, repeatloc)
+        #     orderidtmp = []
+        #     seatnumtmp = []
+        #     for element1 in repeat:
+        #         orderidtmp.append(repeatOrderID[element1])
+        #         seatnumtmp.append(repeatSeatnum[element1])
+        #     duplicateOrderid.append(orderidtmp)
+        #     duplicateSeatNum.append(seatnumtmp)
+        allLoopsTimes = len(repeatdicInfo)
+        for i in range(allLoopsTimes):
+            tmpindex = []
+            # 如果全部只剩一个元素了，那么就直接合并结束循环
+            if len(repeatdicInfo) == 1:
+                break
+            # 如果剩下的元素大于一个那么i为最后一个元素就结束循环
+            if i == len(repeatdicInfo)-1:
+                break
+            for sameindex in range(i+1, len(repeatdicInfo)):
+                pointdistance = auxfn.calcDist(repeatdicInfo[i]['loc'], repeatdicInfo[sameindex]['loc'])
+                if pointdistance <= 100:
+                    tmpindex.append(sameindex)
+            # 将在100m范围内的信息添加到一起
+            if len(tmpindex) > 0:
+                for el in tmpindex:
+                    repeatdicInfo[i]['bid'] += repeatdicInfo[el]['bid']
+                    repeatdicInfo[i]['seatno'] += repeatdicInfo[el]['seatno']
+                for delindex in reversed(tmpindex):
+                    del (repeatdicInfo[delindex])
+        duplicateLoc = copy.copy(repeatdicInfo)
         return duplicateLoc
 
-    # 第三次处理数据排除一个地点中=5/6的情况，如果这个地点人数大于6，那么将订单人数相加=5/6存入getonthecar，剩下的订单存入RMMTSID，RMMTSLoc
-    def removeMoreThanSixPassenger(self, ID, Loc, Seatnum, RMMTSID, RMMTSLoc, RMMTSseatnum, getontcar, getonthecaloc, getonthecarseatnum):
-        for i in range(len(Seatnum)):
-            if sum(Seatnum[i]) is MAXSEATNUM6 or sum(Seatnum[i]) is MAXSEATNUM5:
-                getontcar.append(ID[i])
-                getonthecaloc.append(Loc[i])
-                getonthecarseatnum.append(Seatnum[i])
-            elif sum(Seatnum[i]) > MAXSEATNUM6:
-                tmpSeatnum = copy.copy(Seatnum[i])
-                tmpID = copy.copy(ID[i])
+    # 排除一个地点中=5/6的情况，如果这个地点人数大于6，那么将订单人数相加=5/6存入getonthecar，剩下的订单存入RMMTSID，RMMTSLoc
+    def removeMoreThanSixPassenger(self, rmtspID, rmtspLoc, rmtspSeat, duplicateInfo, advanceGetOnTheCar):
+        for i in range(len(duplicateInfo)):
+            if sum(duplicateInfo[i]['seatno']) == MAXSEATNUM6 or sum(duplicateInfo[i]['seatno']) == MAXSEATNUM5:
+                advanceGetOnTheCar.append(duplicateInfo[i]['bid'])
+            elif sum(duplicateInfo[i]['seatno']) > MAXSEATNUM6:
+                tmpSeatnum = copy.copy(duplicateInfo[i]['seatno'])
+                tmpID = copy.copy(duplicateInfo[i]['bid'])
                 knapsack6 = knapsack.zeroOneKnapsack(tmpSeatnum, MAXSEATNUM6)
                 knapsack5 = knapsack.zeroOneKnapsack(tmpSeatnum, MAXSEATNUM5)
-                while knapsack6[0] is MAXSEATNUM6 or knapsack5[0] is MAXSEATNUM5:
-                    if knapsack6[0] is 6:
+                while knapsack6[0] == MAXSEATNUM6 or knapsack5[0] == MAXSEATNUM5:
+                    if knapsack6[0] == 6:
                         knapsackvalue = knapsack6[1]
                     else:
                         knapsackvalue = knapsack5[1]
                     tmpalreadygetonthcarid = []
-                    storeindex = [j for j, x in enumerate(knapsackvalue) if x is 1]      # 列表推导式
+                    storeindex = [j for j, x in enumerate(knapsackvalue) if x == 1]      # 列表推导式
                     for element1 in storeindex:
                         tmpalreadygetonthcarid.append(tmpID[element1])
-                    getontcar.append(tmpalreadygetonthcarid)
-                    getonthecaloc.append(Loc[i])
-                    getonthecarseatnum.append(Seatnum[i])
+                    advanceGetOnTheCar.append(tmpalreadygetonthcarid)
                     for element2 in reversed(storeindex):
                         del (tmpSeatnum[element2])
                         del (tmpID[element2])
                     if len(tmpSeatnum) > 1:
                         knapsack6 = knapsack.zeroOneKnapsack(tmpSeatnum, MAXSEATNUM6)
                         knapsack5 = knapsack.zeroOneKnapsack(tmpSeatnum, MAXSEATNUM5)
-                    elif len(tmpSeatnum) is 1:
-                        RMMTSID.append(tmpID)
-                        RMMTSLoc.append(Loc[i])
-                        RMMTSseatnum.append(tmpSeatnum)
+                    elif len(tmpSeatnum) == 1:
+                        rmtspID.append(tmpID)
+                        rmtspLoc.append(duplicateInfo[i]['loc'])
+                        rmtspSeat.append(tmpSeatnum)
                         break
                     else:
                         break
                 else:
                     if sum(tmpSeatnum) < 6:
-                        RMMTSID.append(tmpID)
-                        RMMTSLoc.append(Loc[i])
-                        RMMTSseatnum.append(tmpSeatnum)
+                        rmtspID.append(tmpID)
+                        rmtspLoc.append(duplicateInfo[i]['loc'])
+                        rmtspSeat.append(tmpSeatnum)
                     else:                                       # 增加同一个地点大于6个人订单情况
-                        tmpLoc = list(Loc[i])
+                        tmpLoc = list(duplicateInfo[i]['loc'])
                         r = 0
                         for k in xrange(len(tmpID)):
                             tmpLoc[0] += r
                             tmpLoc[1] += r
-                            RMMTSID.append([tmpID[k]])
-                            RMMTSLoc.append(tuple(tmpLoc))
-                            RMMTSseatnum.append([tmpSeatnum[k]])
+                            rmtspID.append([tmpID[k]])
+                            rmtspLoc.append(tuple(tmpLoc))
+                            rmtspSeat.append([tmpSeatnum[k]])
                             r += 0.00001
             else:
-                RMMTSID.append(ID[i])
-                RMMTSLoc.append(Loc[i])
-                RMMTSseatnum.append(Seatnum[i])
+                rmtspID.append(duplicateInfo[i]['bid'])
+                rmtspLoc.append(duplicateInfo[i]['loc'])
+                rmtspSeat.append(duplicateInfo[i]['seatno'])
 
     # 如果已经上车的且订单中人数=5，那么寻找它500米范围内的一个人，如果有就上车且在RMMSID、RMMSLoc、RMMTSseatnum中删除订单信息，如果没有就什么不做
+    # 已经不再使用
     def getTheFivePersonAroundOnlyOne(self, getonthecar, getonthecarloc, getonthecarseatnum, RMMTSID, RMMTSLoc, RMMTSseatnum):
         tmpRMMTSLoc = copy.copy(RMMTSLoc)
         tmpRMMTSLocVec = self.getOrderLocVec(tmpRMMTSLoc)
         frelement = []
         for i in range(len(getonthecarseatnum)):
-            if sum(getonthecarseatnum[i]) is MAXSEATNUM5:   # 修改==为is提高效率
+            if sum(getonthecarseatnum[i]) == MAXSEATNUM5:   # 修改==为is提高效率
                 arounddistvec = auxfn.calcDistVec(getonthecarloc[i], tmpRMMTSLocVec)
                 tmpix = np.where(arounddistvec < 501)  # 寻找500米的范围
                 if len(tmpix[0]) is not 0:
                     ix = [x for x in tmpix[0] if x not in frelement]
                     if len(ix) is not 0:
                         for element in ix:
-                            if len(RMMTSseatnum[element]) is 1 and RMMTSseatnum[element][0] is 1:
+                            if len(RMMTSseatnum[element]) == 1 and RMMTSseatnum[element][0] == 1:
                                 frelement.append(element)
                                 getonthecar[i].append(RMMTSID[element][0])
                                 break
@@ -320,7 +371,7 @@ class DIST:
         nextpassenger = []
         for i in xrange(len(nexpasIdx)):
             longDist = 0
-            if len(currenPasIdxVec) is 1:
+            if len(currenPasIdxVec) == 1:
                 longDist += auxfn.calcDist((CHENGDULAT, allOrderLoc[currenPasIdxVec[0]][1]), (CHENGDULAT, allOrderLoc[nexpasIdx[i]][1]))
             else:
                 for j in xrange(len(currenPasIdxVec)):
@@ -389,8 +440,7 @@ class DIST:
                     ret[m].append(tmp)
         return ret
 
-
-# 获得已经上车的乘客的时间距离getonthecarloc=[(lat1,lng1),(lat2,lng2)],getonthecarorderid=[[A,B,C],[D,E]]
+    # 获得已经上车的乘客的时间距离getonthecarloc=[(lat1,lng1),(lat2,lng2)],getonthecarorderid=[[A,B,C],[D,E]]
     def gethasgotonthecartimedistance(self, getonthecarloc, getonthecarorderid):
         GTI = mapAPI.AMapAPI()
         if len(getonthecarloc) is not 1:
@@ -411,6 +461,305 @@ class DIST:
             hasgetonthecarorderandtime.append(car)
         return hasgetonthecarorderandtime
 
+    # 超过7人排班后剩下的人中排班
+    def anothereastcourn(self, allid, allloc, allseatNo, eastoutID, eastoutLoc, eastoutseatNo, getonthecar):
+        sd = eastandwestside.SIDE()
+        getcarNum = sum(flatten(eastoutseatNo))
+        # 优先寻找特殊接送区域的人
+        # 在剩下的所有人中寻找在特殊区域的人
+        allpickindex = [ap for ap in range(len(allloc)) if sd.allpick(allloc[ap])]
+        eastpickindex = [ep for ep in range(len(allloc)) if sd.eastpick(allloc[ep])]
+        eastgetcaridx = []
+        # 优先选择所有可以接送的区域
+        if len(allpickindex) > 0:
+            for apd in allpickindex:
+                if getcarNum + sum(allseatNo[apd]) <= 6:
+                    eastgetcaridx.append(apd)
+                    eastoutID.append(allid[apd])
+                    eastoutLoc.append(allloc[apd])
+                    eastoutseatNo.append(allseatNo[apd])
+                    getcarNum += sum(allseatNo[apd])
+                else:
+                    break
+            if getcarNum == MAXSEATNUM5 or getcarNum == MAXSEATNUM6:
+                # 按照纬度由高到低排序
+                acar = [wd for (lc, wd) in sorted(zip([lat[0] for lat in eastoutLoc], eastoutID), reverse=True)]
+                getonthecar.append(flatten(acar))
+                # 删除已经上车的订单
+                for delid in reversed(eastgetcaridx):
+                    del (allid[delid])
+                    del (allloc[delid])
+                    del (allseatNo[delid])
+                return
+        # 人没有装满继续选择西边可接送区域
+        if len(eastpickindex) > 0:
+            for epd in eastpickindex:
+                if getcarNum + sum(allseatNo[epd]) <= 6:
+                    eastgetcaridx.append(epd)
+                    eastoutID.append(allid[epd])
+                    eastoutLoc.append(allloc[epd])
+                    eastoutseatNo.append(allseatNo[epd])
+                    getcarNum += sum(allseatNo[epd])
+                else:
+                    break
+            if getcarNum == MAXSEATNUM5 or getcarNum == MAXSEATNUM6:
+                # 按照纬度由高到低排序
+                acar = [wd for (lc, wd) in sorted(zip([lat[0] for lat in eastoutLoc], eastoutID), reverse=True)]
+                getonthecar.append(flatten(acar))
+                # 删除已经上车的订单
+                for delid in reversed(eastgetcaridx):
+                    del (allid[delid])
+                    del (allloc[delid])
+                    del (allseatNo[delid])
+                return
+        # 如果人没有装满那么继续寻找离得比较近的和纬度比自己高的
+        locSoted = sorted(eastoutLoc, cmp=lambda a, b: -1 if a[0] > b[0] else 0)
+        getneighidx = self.getwestneighber(locSoted[0], allloc)
+        notgetneighbor = list(set(getneighidx) - set(eastgetcaridx))
+        if len(notgetneighbor) == 0:
+            for deleg in reversed(eastgetcaridx):
+                del (allid[deleg])
+                del (allloc[deleg])
+                del (allseatNo[deleg])
+            # 已确定不进入排班
+            if getcarNum <= 2:
+                # 进入所有订单的自动排班，不上车
+                allid += eastoutID
+                allloc += eastoutLoc
+                allseatNo += eastoutseatNo
+            else:
+                acar = [wd for (lc, wd) in sorted(zip([lat[0] for lat in eastoutLoc], eastoutID), reverse=True)]
+                getonthecar.append(flatten(acar))
+                return
+        else:
+            for ngb in notgetneighbor:
+                if getcarNum + sum(allseatNo[ngb]) <= 6:
+                    eastgetcaridx.append(ngb)
+                    eastoutID.append(allid[ngb])
+                    eastoutLoc.append(allloc[ngb])
+                    eastoutseatNo.append(allseatNo[ngb])
+                    getcarNum += sum(allseatNo[ngb])
+                else:
+                    break
+            for delngb in sorted(eastgetcaridx, reverse=True):
+                del (allid[delngb])
+                del (allloc[delngb])
+                del (allseatNo[delngb])
+            if getcarNum <= 2:
+                # 进入所有订单的自动排班，不上车
+                allid += eastoutID
+                allloc += eastoutLoc
+                allseatNo += eastoutseatNo
+            else:
+                acar = [wd for (lc, wd) in sorted(zip([lat[0] for lat in eastoutLoc], eastoutID), reverse=True)]
+                getonthecar.append(flatten(acar))
+            return
+
+    def eastcouren(self, allid, allloc, allseatNo, outindex, getonthecar):
+        sd = eastandwestside.SIDE()
+        # 将在2环到2.5环的人单独提出来
+        eastoutID = []
+        eastoutLoc = []
+        eastoutseatNo = []
+        for i in outindex:
+            eastoutID.append(allid[i])  # [[a,b],[]]
+            eastoutLoc.append(allloc[i])  # [(lat,lng)]
+            eastoutseatNo.append(sum(allseatNo[i]))  # [2,1,1]
+        # 在总的订单中删除要提前上车的乘客
+        for deli in reversed(outindex):
+            del (allid[deli])
+            del (allloc[deli])
+            del (allseatNo[deli])
+        getcarNum = sum(eastoutseatNo)
+        # 优先寻找特殊接送区域的人
+        # 在剩下的所有人中寻找在特殊区域的人
+        allpickindex = [ap for ap in range(len(allloc)) if sd.allpick(allloc[ap])]
+        eastpickindex = [ep for ep in range(len(allloc)) if sd.eastpick(allloc[ep])]
+        eastgetcaridx = []
+        # 优先选择所有可以接送的区域
+        if len(allpickindex) > 0:
+            for apd in allpickindex:
+                if getcarNum+sum(allseatNo[apd]) <= 6:
+                    eastgetcaridx.append(apd)
+                    eastoutID.append(allid[apd])
+                    eastoutLoc.append(allloc[apd])
+                    eastoutseatNo.append(sum(allseatNo[apd]))
+                    getcarNum += sum(allseatNo[apd])
+                else:
+                    break
+            if getcarNum == MAXSEATNUM5 or getcarNum == MAXSEATNUM6:
+                # 按照纬度由高到低排序
+                acar = [wd for (lc, wd) in sorted(zip([lat[0] for lat in eastoutLoc], eastoutID), reverse=True)]
+                getonthecar.append(flatten(acar))
+                # 删除已经上车的订单
+                for delid in reversed(eastgetcaridx):
+                    del (allid[delid])
+                    del (allloc[delid])
+                    del (allseatNo[delid])
+                return
+        # 人没有装满继续选择西边可接送区域
+        if len(eastpickindex) > 0:
+            for epd in eastpickindex:
+                if getcarNum+sum(allseatNo[epd]) <= 6:
+                    eastgetcaridx.append(epd)
+                    eastoutID.append(allid[epd])
+                    eastoutLoc.append(allloc[epd])
+                    eastoutseatNo.append(sum(allseatNo[epd]))
+                    getcarNum += sum(allseatNo[epd])
+                else:
+                    break
+            if getcarNum == MAXSEATNUM5 or getcarNum == MAXSEATNUM6:
+                # 按照纬度由高到低排序
+                acar = [wd for (lc, wd) in sorted(zip([lat[0] for lat in eastoutLoc], eastoutID), reverse=True)]
+                getonthecar.append(flatten(acar))
+                # 删除已经上车的订单
+                for delid in reversed(eastgetcaridx):
+                    del (allid[delid])
+                    del (allloc[delid])
+                    del (allseatNo[delid])
+                return
+        # 如果人没有装满那么继续寻找离得比较近的和纬度比自己高的
+        locSoted = sorted(eastoutLoc, cmp=lambda a, b: -1 if a[0] > b[0] else 0)
+        getneighidx = self.getwestneighber(locSoted[0], allloc)
+        notgetneighbor = list(set(getneighidx)-set(eastgetcaridx))
+        if len(notgetneighbor) == 0:
+            for deleg in reversed(eastgetcaridx):
+                del(allid[deleg])
+                del(allloc[deleg])
+                del(allseatNo[deleg])
+            # 待商量cdh
+            if getcarNum <= 2:
+                # 进入所有订单的自动排班，不上车
+                allid += eastoutID
+                allloc += eastoutLoc
+                allseatNo += [[seat] for seat in eastoutseatNo]
+            else:
+                acar = [wd for (lc, wd) in sorted(zip([lat[0] for lat in eastoutLoc], eastoutID), reverse=True)]
+                getonthecar.append(flatten(acar))
+            return
+        else:
+            for ngb in notgetneighbor:
+                if getcarNum + sum(allseatNo[ngb]) <= 5:
+                    eastgetcaridx.append(ngb)
+                    eastoutID.append(allid[ngb])
+                    eastoutLoc.append(allloc[ngb])
+                    eastoutseatNo.append(sum(allseatNo[ngb]))
+                    getcarNum += sum(allseatNo[ngb])
+                else:
+                    break
+            for delngb in sorted(eastgetcaridx, reverse=True):
+                del(allid[delngb])
+                del(allloc[delngb])
+                del(allseatNo[delngb])
+            if getcarNum <= 2:
+                # 进入所有订单的自动排班，不上车
+                allid += eastoutID
+                allloc += eastoutLoc
+                allseatNo += [[seat] for seat in eastoutseatNo]
+            else:
+                acar = [wd for (lc, wd) in sorted(zip([lat[0] for lat in eastoutLoc], eastoutID), reverse=True)]
+                getonthecar.append(flatten(acar))
+            return
+
+    def eastschedule(self, northOrderID, northOrderLoc, northOrderSeatnum, getonthcar):
+        sd = eastandwestside.SIDE()
+        eastoutsideNo = sd.ateast2out(northOrderLoc, len(northOrderLoc))
+        eastOutSideIndex = np.where(eastoutsideNo <= 1)[0]  # 在2环和2.5环之间的index
+        if len(eastOutSideIndex) == 0:
+            return
+        eastOutSideNumVec = self.getOrderNumVec(northOrderSeatnum)  # 二维的乘客人数转换为与地点对应的一维数组 array[3,1]
+        if sum(eastOutSideNumVec[eastOutSideIndex]) == 5 or sum(eastOutSideNumVec[eastOutSideIndex]) == 6:
+            callcar = []
+            callloc = []
+            for out in eastOutSideIndex:
+                callcar.append(northOrderID[out])
+                callloc.append(northOrderLoc[out])
+            # 两个列表的排序，car的顺序是有loc中lat的顺序决定的
+            acar = [wd for (lc, wd) in sorted(zip([lat[0] for lat in callloc], callcar), reverse=True)]
+            getonthcar.append(flatten(acar))
+            for delout in reversed(eastOutSideIndex):
+                del (northOrderID[delout])
+                del (northOrderLoc[delout])
+                del (northOrderSeatnum[delout])
+            return
+        elif sum(eastOutSideNumVec[eastOutSideIndex]) <= 4:
+            self.eastcouren(northOrderID, northOrderLoc, northOrderSeatnum, eastOutSideIndex, getonthcar)
+            return
+        else:
+            # 处理东边大于6个人的情况
+            outeastID = []  # [[A,,B,C],[D,E,F]]
+            outeastLoc = []  # [(lat1,lng1),(lat2,lng2)]
+            outeastSeatNo = []  # [[1,1,1], [2,1,1]]
+            for outindex in eastOutSideIndex:
+                outeastID.append(northOrderID[outindex])
+                outeastLoc.append(northOrderLoc[outindex])
+                outeastSeatNo.append(northOrderSeatnum[outindex])
+            for outdelinx in reversed(eastOutSideIndex):
+                del (northOrderID[outdelinx])
+                del (northOrderLoc[outdelinx])
+                del (northOrderSeatnum[outdelinx])
+            # 按照纬度拍一个顺序
+            latQueueIndex = sorted(range(len(outeastLoc)), key=lambda k: outeastLoc[k], cmp=lambda a, b: -1 if a[0] > b[0] else 0)
+            locQueue = [outeastLoc[locindex] for locindex in latQueueIndex]
+            idQueue = [outeastID[idindex] for idindex in latQueueIndex]
+            seatQueue = [outeastSeatNo[seatIndex] for seatIndex in latQueueIndex]
+            outsideSeatVec = self.getOrderNumVec(seatQueue)
+            while sum(outsideSeatVec) >= MAXSEATNUM5:
+                getcarIndex = []
+                tmpcar = []
+                tmploc = []
+                carSeat = 0
+                for i in range(len(idQueue)):
+                    if carSeat + outsideSeatVec[i] > MAXSEATNUM6:
+                        continue
+                    carSeat += outsideSeatVec[i]
+                    tmpcar.append(idQueue[i])
+                    tmploc.append(locQueue[i])
+                    getcarIndex.append(i)
+                    if carSeat == MAXSEATNUM5 or carSeat == MAXSEATNUM6:
+                        if carSeat == MAXSEATNUM6:
+                            carpool = [wd for (lc, wd) in sorted(zip([lat[0] for lat in tmploc], tmpcar), reverse=True)]
+                            getonthcar.append(flatten(carpool))
+                            for deli in reversed(getcarIndex):
+                                del (locQueue[deli])
+                                del (idQueue[deli])
+                                del (seatQueue[deli])
+                            break
+                        else:
+                            try:
+                                if carSeat + outsideSeatVec[i + 1] == MAXSEATNUM6:
+                                    tmpcar.append(idQueue[i + 1])
+                                    tmploc.append(locQueue[i + 1])
+                                    getcarIndex.append(i + 1)
+                                    carpool = [wd for (lc, wd) in
+                                               sorted(zip([lat[0] for lat in tmploc], tmpcar), reverse=True)]
+                                    getonthcar.append(flatten(carpool))
+                                    for deli in reversed(getcarIndex):
+                                        del (locQueue[deli])
+                                        del (idQueue[deli])
+                                        del (seatQueue[deli])
+                                    break
+                            except:
+                                pass
+                            carpool = [wd for (lc, wd) in sorted(zip([lat[0] for lat in tmploc], tmpcar), reverse=True)]
+                            getonthcar.append(flatten(carpool))
+                            for deli in reversed(getcarIndex):
+                                del (locQueue[deli])
+                                del (idQueue[deli])
+                                del (seatQueue[deli])
+                            break
+                if carSeat == 3 or carSeat == 4:
+                    carpool = [wd for (lc, wd) in sorted(zip([lat[0] for lat in tmploc], tmpcar), reverse=True)]
+                    getonthcar.append(flatten(carpool))
+                    for deli in reversed(getcarIndex):
+                        del (locQueue[deli])
+                        del (idQueue[deli])
+                        del (seatQueue[deli])
+                outsideSeatVec = self.getOrderNumVec(seatQueue)
+            if sum(outsideSeatVec) > 0:
+                self.anothereastcourn(northOrderID, northOrderLoc, northOrderSeatnum, idQueue, locQueue, seatQueue, getonthcar)
+                return
+
     # 处理西边的订单得到剩下的进入排班的订单
     def westschedule(self, northOrderID, northOrderLoc, northOrderSeatnum, westareaVec, restorderNo, restorderLoc, restorderSeatNo, getonthcar):
         sd = eastandwestside.SIDE()
@@ -430,7 +779,7 @@ class DIST:
         # 寻找2.5环和2环之间的订单，1表示在2环到2.5环之间
         westoutsideNo = sd.atwest2out(westorderLoc, len(westorderLoc))
         outsideIndex = np.where(westoutsideNo <= 1)[0]  # 在2环和2.5环的index
-        if len(outsideIndex) is 0:
+        if len(outsideIndex) == 0:
             restorderNo += northOrderID + westorderID
             restorderLoc += northOrderLoc + westorderLoc
             restorderSeatNo += northOrderSeatnum + westorderSeatNo
@@ -735,7 +1084,7 @@ class DIST:
         try:
             distances, indices = neigh.kneighbors(listCenter)
         except:
-            print 'no west neighbor'
+            print 'no neighbor'
             return neighborhoodIdx
         for index, distance in zip(indices, distances):
             npIndex = index
@@ -785,46 +1134,47 @@ class DIST:
 
     # 当超过7人后按照纬度排班剩下的人数在3,4人凑到5，或者6
     def anotherCouDingdan(self, queueNo, queueLoc, queueSeat, westorderID, westorderLoc, westorderSeatNo, getonthcar):
-        outSeats = sum(flatten(queueSeat))
-        highneighbor = self.getwestneighber(queueLoc[0], westorderLoc)
-        if len(highneighbor) > 0:
-            neighbor = highneighbor
-        else:
-            lowneighbor = self.getlowwestneighber(queueLoc[len(queueLoc) - 1], westorderLoc)
-            neighbor = lowneighbor
-            if len(neighbor) is 0:
+        westarealoclist = []  # 每个idx对应的区域范围
+        for loc in westorderLoc:
+            areanum = getneighbor.findtheareanumber(loc[0], loc[1])
+            westarealoclist.append(areanum)
+        area26 = [16, 19, 21, 23, 26]
+        neighborareaidx = getneighbor.getthewestneighbor(area26, westarealoclist, westorderLoc)
+        if len(neighborareaidx) > 0:
+            outSeats = sum(flatten(queueSeat))
+            # 西边的订单上车
+            westinsidegeton = []
+            for nextI in neighborareaidx:
+                if outSeats + sum(westorderSeatNo[nextI]) <= 6:
+                    queueNo.append(westorderID[nextI])
+                    queueLoc.append(westorderLoc[nextI])
+                    westinsidegeton.append(nextI)
+                    outSeats += sum(westorderSeatNo[nextI])
+                    if outSeats == MAXSEATNUM5 or outSeats == MAXSEATNUM6:
+                        outcar = flatten(queueNo)
+                        getonthcar.append(outcar)
+                        westinsidegeton.sort(cmp=lambda a, b: -1 if a > b else 0)
+                        for delinside in westinsidegeton:
+                            del (westorderID[delinside])
+                            del (westorderLoc[delinside])
+                            del (westorderSeatNo[delinside])
+                        return
+            if len(westinsidegeton) == 0:
                 outcar = flatten(queueNo)
                 getonthcar.append(outcar)
                 return
-        # 西边的订单上车
-        westinsidegeton = []
-        for nextI in neighbor:
-            if outSeats + sum(westorderSeatNo[nextI]) <= 6:
-                queueNo.append(westorderID[nextI])
-                queueLoc.append(westorderLoc[nextI])
-                westinsidegeton.append(nextI)
-                outSeats += sum(westorderSeatNo[nextI])
-                if outSeats == MAXSEATNUM5 or outSeats == MAXSEATNUM6:
-                    outcar = flatten(queueNo)
-                    getonthcar.append(outcar)
-                    westinsidegeton.sort(cmp=lambda a, b: -1 if a > b else 0)
-                    for delinside in westinsidegeton:
-                        del (westorderID[delinside])
-                        del (westorderLoc[delinside])
-                        del (westorderSeatNo[delinside])
-                    return
-        if len(westinsidegeton) == 0:
-            outcar = flatten(queueNo)
-            getonthcar.append(outcar)
-            return
+            else:
+                outcar = flatten(queueNo)
+                getonthcar.append(outcar)
+                westinsidegeton.sort(cmp=lambda a, b: -1 if a > b else 0)
+                for delinside in westinsidegeton:
+                    del (westorderID[delinside])
+                    del (westorderLoc[delinside])
+                    del (westorderSeatNo[delinside])
+                return
         else:
             outcar = flatten(queueNo)
             getonthcar.append(outcar)
-            westinsidegeton.sort(cmp=lambda a, b: -1 if a > b else 0)
-            for delinside in westinsidegeton:
-                del (westorderID[delinside])
-                del (westorderLoc[delinside])
-                del (westorderSeatNo[delinside])
             return
 
     # 当2环到2.5环的订单为3,4个时寻找西边的订单凑到5个,找到其他区域的的人然后删除，找到后就直接上车
@@ -841,64 +1191,78 @@ class DIST:
             del (westorderID[outdelinx])
             del (westorderLoc[outdelinx])
             del (westorderSeatNo[outdelinx])
-        # 根据高纬度到低纬度排序，lat为loc的第一个参数
-        locSoted = sorted(outwestLoc, cmp=lambda a, b: -1 if a[0] > b[0] else 0)
-        highneighbor = self.getwestneighber(locSoted[0], westorderLoc)
-        if len(highneighbor) > 0:
-            neighbor = highneighbor
-        else:
-            lowneighbor = self.getlowwestneighber(locSoted[len(locSoted)-1], westorderLoc)
-            neighbor = lowneighbor
-            if len(neighbor) is 0:
+        # 修改为接路边上的点
+        westarealoclist = []  # 每个idx对应的区域范围
+        for loc in westorderLoc:
+            areanum = getneighbor.findtheareanumber(loc[0], loc[1])
+            westarealoclist.append(areanum)
+        area26 = [16, 19, 21, 23, 26]
+        neighborareaidx = getneighbor.getthewestneighbor(area26, westarealoclist, westorderLoc)
+        if len(neighborareaidx) > 0:
+            westinsidegeton = []
+            for nextI in neighborareaidx:
+                if outSeats + sum(westorderSeatNo[nextI]) <= 6:
+                    outwestID.append(westorderID[nextI])
+                    outwestLoc.append(westorderLoc[nextI])
+                    westinsidegeton.append(nextI)
+                    outSeats += sum(westorderSeatNo[nextI])
+                    if outSeats == MAXSEATNUM5 or outSeats == MAXSEATNUM6:
+                        carpool = [wd for (lc, wd) in sorted(zip([lat[0] for lat in outwestLoc], outwestID), reverse=True)]
+                        outcar = flatten(carpool)
+                        getonthcar.append(outcar)
+                        westinsidegeton.sort(cmp=lambda a, b: -1 if a > b else 0)
+                        for delinside in westinsidegeton:
+                            del (westorderID[delinside])
+                            del (westorderLoc[delinside])
+                            del (westorderSeatNo[delinside])
+                        return
+            if len(westinsidegeton) == 0:
                 carpool = [wd for (lc, wd) in sorted(zip([lat[0] for lat in outwestLoc], outwestID), reverse=True)]
                 outcar = flatten(carpool)
                 getonthcar.append(outcar)
                 return
-        # 西边的订单上车
-        westinsidegeton = []
-        for nextI in neighbor:
-            if outSeats + sum(westorderSeatNo[nextI]) <= 6:
-                outwestID.append(westorderID[nextI])
-                outwestLoc.append(westorderLoc[nextI])
-                westinsidegeton.append(nextI)
-                outSeats += sum(westorderSeatNo[nextI])
-                if outSeats == MAXSEATNUM5 or outSeats == MAXSEATNUM6:
-                    carpool = [wd for (lc, wd) in sorted(zip([lat[0] for lat in outwestLoc], outwestID), reverse=True)]
-                    outcar = flatten(carpool)
-                    getonthcar.append(outcar)
-                    westinsidegeton.sort(cmp=lambda a, b: -1 if a > b else 0)
-                    for delinside in westinsidegeton:
-                        del (westorderID[delinside])
-                        del (westorderLoc[delinside])
-                        del (westorderSeatNo[delinside])
-                    return
-        if len(westinsidegeton) == 0:
-            carpool = [wd for (lc, wd) in sorted(zip([lat[0] for lat in outwestLoc], outwestID), reverse=True)]
-            outcar = flatten(carpool)
-            getonthcar.append(outcar)
-            return
+            else:
+                carpool = [wd for (lc, wd) in sorted(zip([lat[0] for lat in outwestLoc], outwestID), reverse=True)]
+                outcar = flatten(carpool)
+                getonthcar.append(outcar)
+                westinsidegeton.sort(cmp=lambda a, b: -1 if a > b else 0)
+                for delinside in westinsidegeton:
+                    del (westorderID[delinside])
+                    del (westorderLoc[delinside])
+                    del (westorderSeatNo[delinside])
+                return
         else:
             carpool = [wd for (lc, wd) in sorted(zip([lat[0] for lat in outwestLoc], outwestID), reverse=True)]
             outcar = flatten(carpool)
             getonthcar.append(outcar)
-            westinsidegeton.sort(cmp=lambda a, b: -1 if a > b else 0)
-            for delinside in westinsidegeton:
-                del (westorderID[delinside])
-                del (westorderLoc[delinside])
-                del (westorderSeatNo[delinside])
             return
 
     # 使用tsp算法进行排序（f**k this tsp）
-    def sortPassenger(self, carList, northOrderLoc):
-        sortcarList =[]
-        for element in carList:
-            onecarpassenger = []
-            for element2 in element:
-                onecarpassenger.append(northOrderLoc[element2])
-            t = tsp(onecarpassenger)
-            t.solve()
-            sortcarList.append(t.result)
-        return sortcarList
-
+    # def sortPassenger(self, carList, northOrderLoc):
+    #     sortcarList =[]
+    #     for element in carList:
+    #         onecarpassenger = []
+    #         for element2 in element:
+    #             onecarpassenger.append(northOrderLoc[element2])
+    #         t = tsp(onecarpassenger)
+    #         t.solve()
+    #         sortcarList.append(t.result)
+    #     return sortcarList
+    # 对区域内的点进行到当前点的距离的排序选取一个最小的点
+    def getthesameareapointdistance(self, arealoclist, firstPassengerIdx, allgetonthecaridx, restorderLoc):
+        currentarea = arealoclist[firstPassengerIdx]
+        neighborareaindex = [a for a in range(len(arealoclist)) if arealoclist[a] == currentarea and a not in allgetonthecaridx]
+        neighborareaindexlength  = len(neighborareaindex)
+        if neighborareaindexlength == 0:
+            return None
+        elif neighborareaindexlength == 1:
+            return neighborareaindex
+        elif neighborareaindexlength > 1:
+            neighborloc = [restorderLoc[locidx] for locidx in neighborareaindex]
+            neighborlocvec = self.getOrderLocVec(neighborloc)  # 一维的经纬度列表转换为二维的经纬度数组
+            locdisvec = auxfn.calcDistVec(restorderLoc[firstPassengerIdx], neighborlocvec)
+            # 对当前区域到当前点的距离排序得到的排序后的index
+            locsortidx = [idx for (loc, idx) in sorted(zip(locdisvec, neighborareaindex))]
+            return locsortidx
 
 
