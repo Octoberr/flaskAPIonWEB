@@ -56,12 +56,12 @@ def startschedul(resdict):
             del (rmtspSeat[delel])
     # 进入调用schedule的订单数
     orderNum = len(rmtspLoc)     # 进入排班算法的总地点数
-    # seatNumVec = dis.getOrderNumVec(rmtspSeat)  # 二维的乘客人数转换为与地点对应的一维数组 array[3,1]
+    seatNumVec = dis.getOrderNumVec(rmtspSeat)  # 二维的乘客人数转换为与地点对应的一维数组 array[3,1]
     sidevec = area.ateast(orderNum, rmarealoclist)   # 地区东边和西边的代码，地图东为1，西为2,array
     eastareaVec = np.where(sidevec <= 1)[0]  # 东边地区的index集合，一维array
     westareaVec = np.where(sidevec >= 2)[0]  # 西边地区的index集合，一维array
     # 如果东边和西边的人数同时小于或等于6就分别上车
-    if sum(sidevec[eastareaVec]) <= 6 and sum(sidevec[westareaVec]) <= 6:
+    if sum(seatNumVec[eastareaVec]) <= 6 and sum(seatNumVec[westareaVec]) <= 6:
         eastcar = [rmtspID[e] for e in eastareaVec]
         if len(eastcar) > 0:
             eastloc = [rmtspLoc[lc] for lc in eastareaVec]
@@ -75,7 +75,7 @@ def startschedul(resdict):
         AllCarOrder = advanceGetOnTheCar + specifyDriverOrder
         return AllCarOrder
     # 如果东边小于等于6，西边大于6,东边上车
-    elif sum(sidevec[eastareaVec]) <= 6 and sum(sidevec[westareaVec]) > 6:
+    elif sum(seatNumVec[eastareaVec]) <= 6 and sum(seatNumVec[westareaVec]) > 6:
         eastcar = [rmtspID[e] for e in eastareaVec]
         if len(eastcar) > 0:
             eastloc = [rmtspLoc[f] for f in eastareaVec]
@@ -99,9 +99,10 @@ def startschedul(resdict):
         else:
             import schedulelogic
             carOrderList = schedulelogic.slogic(restorderNo, restorderLoc, restorderSeatNo)
-            AllCarOrder = carOrderList + advanceGetOnTheCar + specifyDriverOrder
+            quecarorder = dis.quescheduel(carOrderList, restorderNo, restorderLoc)
+            AllCarOrder = quecarorder + advanceGetOnTheCar + specifyDriverOrder
             return AllCarOrder
-    elif sum(sidevec[eastareaVec]) > 6 and sum(sidevec[westareaVec]) <= 6:
+    elif sum(seatNumVec[eastareaVec]) > 6 and sum(seatNumVec[westareaVec]) <= 6:
         westcar = [rmtspID[w] for w in westareaVec]
         if len(westcar) > 0:
             westloc = [rmtspLoc[g] for g in westareaVec]
@@ -113,7 +114,8 @@ def startschedul(resdict):
                 del(rmtspSeat[delindex])
         import schedulelogic
         carOrderList = schedulelogic.slogic(rmtspID, rmtspLoc, rmtspSeat)
-        AllCarOrder = carOrderList + advanceGetOnTheCar + specifyDriverOrder
+        quecarorder = dis.quescheduel(carOrderList, rmtspID, rmtspLoc)
+        AllCarOrder = quecarorder + advanceGetOnTheCar + specifyDriverOrder
         return AllCarOrder
     else:
         # 对订单在西边2环到2.5环的情况进行排班
@@ -125,6 +127,7 @@ def startschedul(resdict):
                          advanceGetOnTheCar)
         import schedulelogic
         carOrderList = schedulelogic.slogic(restorderNo, restorderLoc, restorderSeatNo)
-        AllCarOrder = carOrderList + advanceGetOnTheCar + specifyDriverOrder
+        quecarorder = dis.quescheduel(carOrderList, restorderNo, restorderLoc)
+        AllCarOrder = quecarorder + advanceGetOnTheCar + specifyDriverOrder
         return AllCarOrder
 

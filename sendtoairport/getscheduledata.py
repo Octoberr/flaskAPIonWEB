@@ -7,7 +7,7 @@ def getquredate(args):
     conn = pymssql.connect("116.62.58.212", "bwcops", "tRansfeR@#bw2017!", "TransferDB_V3", charset="utf8")
     cur =conn.cursor()
     sql = "SELECT BookingID,PickupLatitude lat,PickupLongitude lng,SeatNum seatnum,TimeTable timetable,CAST(PickupTime AS DATE) AS [date] " \
-          "FROM dbo.Booking WHERE TripType = 2 and TimeTable='TimeTable9' and CAST(PickupTime AS DATE)='{}'".format(args)
+          "FROM dbo.Booking WHERE TripType = 2 and TimeTable='TimeTable23' and CAST(PickupTime AS DATE)='{}'".format(args)
     cur.execute(sql)
     data = cur.fetchall()
     cur.close()

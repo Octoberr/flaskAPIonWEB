@@ -34,7 +34,6 @@ def findtheareanumber(loclat, loclng):
             return None
 
 
-
 def calcDist(locationA, locationB):
     """
     input: two location coordinates: (latA, lngA) & (latB, lngB), could be tuple or list
@@ -43,7 +42,7 @@ def calcDist(locationA, locationB):
     return geopy.distance.vincenty(locationA, locationB).km * 1000
 
 
-def theneighborarea(arealoclist, allgetonthecaridx, firstPassengerIdx, restorderLoc, currentpointneighbor):
+def theneighborarea(arealoclist, allgetonthecaridx, currentarea, restorderLoc, currentpointneighbor):
     allneighboridx = []
     for areaidx in currentpointneighbor:
         index = [i for i in range(len(arealoclist)) if arealoclist[i] == areaidx and i not in allgetonthecaridx]
@@ -54,7 +53,7 @@ def theneighborarea(arealoclist, allgetonthecaridx, firstPassengerIdx, restorder
         less100idx = []
         less100element = []
         # 当前点所在的区域
-        filename = filedir + "/" + neighborlist[arealoclist[firstPassengerIdx]]
+        filename = filedir + "/" + neighborlist[currentarea]
         polys = sf.Reader(filename)
         polygon = polys.shapes()
         shpfilePoints = []
@@ -69,14 +68,16 @@ def theneighborarea(arealoclist, allgetonthecaridx, firstPassengerIdx, restorder
             closest_point_coords = list(p.coords)[0]
             # print calcDist((104.042779, 30.620844), (closest_point_coords[0], closest_point_coords[1]))
             distance = calcDist((restorderLoc[neighbor][1], restorderLoc[neighbor][0]), (closest_point_coords[0], closest_point_coords[1]))
-            if distance < 201:
+            if distance < 101:
                 less100idx.append(neighbor)
                 less100element.append(distance)
         if len(less100idx) > 1:
             newsortneighbor = [idx for (element, idx) in sorted(zip(less100element, less100idx))]
             return newsortneighbor
-        else:
+        elif len(less100idx) == 1:
             return less100idx
+        else:
+            return None
 
 
 def getthewestneighbor(area26, westarealoclist, westorderLoc):

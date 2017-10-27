@@ -12,6 +12,7 @@ import json
 from itertools import groupby
 from operator import itemgetter
 from sendtoairport import overwritestartschedule
+import func_timeout
 
 
 # 将订单信息转换为json数组[{numberoforder:3,OrderInfos:[{orderpoid:gfg,pickupTime:1800},{orderpoid:jhj,pickupTime:1800}]},{....}]
@@ -65,6 +66,7 @@ def incodejs(AllscheduleData, scheduleDataVec):
     return jsondatar
 
 
+@func_timeout.func_set_timeout(20)   # 超过20秒说明程序出了问题，自动停止这次进程
 def geteachTimepointSchedule(AllscheduleData):
     AllscheduleData = sorted(AllscheduleData, key=itemgetter('date'))
     allDataGroups = groupby(AllscheduleData, key=itemgetter('date'))

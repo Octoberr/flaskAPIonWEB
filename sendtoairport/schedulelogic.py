@@ -48,6 +48,21 @@ TIANFUSQUIRE = [30.604043, 104.074086]
 CARSEATS = 6     # 一辆车最大乘客为6个人
 fivecarset = 5   # 5个人上车也可以
 SEARCHRADIUS = 1500  # 1500m的范围
+EastSpecificList = [3, 7, 12, 13, 14]
+WestSpecificList = [19, 21, 23]
+
+
+def getrestlist(currentarea):
+    if currentarea in EastSpecificList:
+        areadist = len(EastSpecificList)
+        currentindex = EastSpecificList.index(currentarea)
+        restarea = [EastSpecificList[i] for i in range(currentindex, areadist)]
+        return restarea
+    else:
+        areadist = len(WestSpecificList)
+        currentindex = WestSpecificList.index(currentarea)
+        restarea = [WestSpecificList[i] for i in range(currentindex, areadist)]
+        return restarea
 
 
 def slogic(restorderNo, restorderLoc, restorderSeatNo):
@@ -73,40 +88,83 @@ def slogic(restorderNo, restorderLoc, restorderSeatNo):
         numPassenger = restSeatNoVec[firstPassengerIdx]  # 一辆车上的乘客数量
         keypointDistVec[firstPassengerIdx] = 0  # 找到后进行虚拟删除，将值赋为0
         while numPassenger < CARSEATS:
-            # 1、相同区域,依据到当前点的距离排序的index
-            sameareaindx = dis.getthesameareapointdistance(arealoclist, firstPassengerIdx, allgetonthecaridx, restorderLoc)
-            if sameareaindx is not None:
-                # 当前区域总人数小于5人
-                thenumofthearea = numPassenger + sum(restSeatNoVec[sameareaindx])
-                if thenumofthearea < fivecarset:
+            # 获得当前点所在的区域
+            currentarea = arealoclist[firstPassengerIdx]
+            if currentarea in EastSpecificList+WestSpecificList:
+                # 寻找当前区域，然后寻找临近区域
+                # 获取当前剩下的区域
+                therestlist = getrestlist(currentarea)
+                for area in therestlist:
+                    # 获取当前区域的所有点
+                    sameareaindx = dis.getthesameareapointdistance(arealoclist, firstPassengerIdx, area,
+                                                                   allgetonthecaridx, restorderLoc)
+                    if sameareaindx is not None:
+                        for sameidx in sameareaindx:
+                            if numPassenger + restSeatNoVec[sameidx] <= CARSEATS:
+                                allgetonthecaridx.append(sameidx)
+                                tmpcarorder.append(sameidx)
+                                numPassenger += restSeatNoVec[sameidx]
+                                keypointDistVec[sameidx] = 0
+                                firstPassengerIdx = sameidx
+                                if numPassenger == CARSEATS:
+                                    break  # 结束循环
+                    if numPassenger == fivecarset or numPassenger == CARSEATS:
+                        # 当前区域的人找完后满足5人或者6人，说明人找齐了
+                        break
+                    else:
+                        # 当前区域的人数不够先寻找距离本区域边界只有100m的点
+                        neighborareaidx = getneighbor.theneighborarea(arealoclist, allgetonthecaridx, area,
+                                                                      restorderLoc, areaneighbor[area])
+                        if neighborareaidx is not None:
+                            for neighidx in neighborareaidx:
+                                if numPassenger + restSeatNoVec[neighidx] <= CARSEATS:
+                                    allgetonthecaridx.append(neighidx)
+                                    tmpcarorder.append(neighidx)
+                                    numPassenger += restSeatNoVec[neighidx]
+                                    keypointDistVec[neighidx] = 0
+                                    if numPassenger == CARSEATS:
+                                        break  # 结束循环
+                         # 当满足一辆车上车的人就上车打破循环
+                        if numPassenger == fivecarset or numPassenger == CARSEATS:
+                            # 当前区域的人找完后满足5人或者6人，说明人找齐了
+                            break
+            else:
+                # 直接寻找当前区域和临近区域，当前一个区域
+                # 1、相同区域,依据到当前点的距离排序的index
+                sameareaindx = dis.getthesameareapointdistance(arealoclist, firstPassengerIdx, currentarea, allgetonthecaridx, restorderLoc)
+                if sameareaindx is not None:
                     for sameidx in sameareaindx:
-                        allgetonthecaridx.append(sameidx)
-                        tmpcarorder.append(sameidx)
-                        numPassenger += restSeatNoVec[sameidx]
-                        keypointDistVec[sameidx] = 0
-                    firstPassengerIdx = sameareaindx[-1]  # 将基准点设置为这个区域的最后一个点
-                # 当前区域 ==5/6
-                elif thenumofthearea == fivecarset or thenumofthearea == CARSEATS:
-                    for sameidx in sameareaindx:
-                        allgetonthecaridx.append(sameidx)
-                        tmpcarorder.append(sameidx)
-                        keypointDistVec[sameidx] = 0
-                        numPassenger += restSeatNoVec[sameidx]
-                # 当期区域大于6
-                else:
-                    for sameidx in sameareaindx:
-                        if numPassenger+restSeatNoVec[sameidx] <= CARSEATS:
+                        if numPassenger + restSeatNoVec[sameidx] <= CARSEATS:
                             allgetonthecaridx.append(sameidx)
                             tmpcarorder.append(sameidx)
                             numPassenger += restSeatNoVec[sameidx]
                             keypointDistVec[sameidx] = 0
+                            firstPassengerIdx = sameidx
                             if numPassenger == CARSEATS:
-                                break   # 结束循环
-            if numPassenger == CARSEATS or numPassenger == fivecarset:
+                                break  # 结束循环
+                    if numPassenger == fivecarset or numPassenger == CARSEATS:
+                        # 当前区域的人找完后满足5人或者6人，说明人找齐了,叫新车
+                        carorder.append(tmpcarorder)
+                        break
+                    else:
+                        # 当前区域的人数不够先寻找距离本区域边界只有100m的点
+                        neighborareaidx = getneighbor.theneighborarea(arealoclist, allgetonthecaridx, currentarea,
+                                                                      restorderLoc, areaneighbor[currentarea])
+                        if neighborareaidx is not None:
+                            for neighidx in neighborareaidx:
+                                if numPassenger + restSeatNoVec[neighidx] <= CARSEATS:
+                                    allgetonthecaridx.append(neighidx)
+                                    tmpcarorder.append(neighidx)
+                                    numPassenger += restSeatNoVec[neighidx]
+                                    keypointDistVec[neighidx] = 0
+                                    if numPassenger == CARSEATS:
+                                        break  # 结束循环
+            if numPassenger == fivecarset or numPassenger == CARSEATS:
+                # 当前区域和临近区域都找完后发现人满了那么就结束这次找人，如果没满就继续下一个区域寻找
                 carorder.append(tmpcarorder)
-                break   # 打破循环找一辆新车
+                break
             # 当前区域已经没有人了，或是当前区域的人已经被找完，当前点为当前区域的最后一个点
-            # 2、寻找1500m范围的人
+            # 2、寻找1500m范围的人，1可以找1和2,2只能找2
             allneighborhoodIdxVec = auxfn.getNeighborhoodIdx(orderVec, orderVec[firstPassengerIdx, :], SEARCHRADIUS, firstPassengerIdx, restsideVec)
             neighborhoodIdxVec = [x for x in allneighborhoodIdxVec if x not in allgetonthecaridx]
             if len(neighborhoodIdxVec) > 0:
@@ -118,73 +176,70 @@ def slogic(restorderNo, restorderLoc, restorderSeatNo):
                         firstPassengerIdx = neighboridx
                         keypointDistVec[firstPassengerIdx] = 0
                         break
-                continue
-            # 2、临近区域,依据到边界的距离排序，东西属性相同赋予下一个点，不同依然是当前点为基准
-            neighborareaidx = getneighbor.theneighborarea(arealoclist, allgetonthecaridx,  firstPassengerIdx, restorderLoc, areaneighbor[arealoclist[firstPassengerIdx]])
-            if neighborareaidx is not None:
-                for nidx in neighborareaidx:
-                    if numPassenger + restSeatNoVec[nidx] <= CARSEATS:
-                        allgetonthecaridx.append(nidx)
-                        tmpcarorder.append(nidx)
-                        numPassenger += restSeatNoVec[nidx]
-                        keypointDistVec[nidx] = 0
-                        if numPassenger == CARSEATS:
-                            break  # 结束循环
-                        if restsideVec[firstPassengerIdx] == restsideVec[nidx]:
-                            nextPassengerIdx = nidx
-                            tmpnextsameareaindx = dis.getthesameareapointdistance(arealoclist, nextPassengerIdx, allgetonthecaridx,
-                                                                           restorderLoc)
-                            if tmpnextsameareaindx is not None:
-                                nextsameareaindx = [areaidx for areaidx in tmpnextsameareaindx if areaidx not in neighborareaidx]
-                                if nextsameareaindx is not None:
-                                    for sameidx in nextsameareaindx:
-                                        if numPassenger + restSeatNoVec[sameidx] <= CARSEATS:
-                                            allgetonthecaridx.append(sameidx)
-                                            tmpcarorder.append(sameidx)
-                                            numPassenger += restSeatNoVec[sameidx]
-                                            keypointDistVec[sameidx] = 0
-                                            if numPassenger == CARSEATS:
-                                                break  # 结束循环
-                    else:
-                        break
-            if numPassenger == CARSEATS or numPassenger == fivecarset:
-                carorder.append(tmpcarorder)
-                break  # 打破循环找一辆新车
-            # 4、周围没有点那就寻找顺路的点，顺路的定义为，到机场的距离小于当前点且与机场之间的夹角小于15
-            ix = np.where(np.in1d(np.arange(restorderNum), allgetonthecaridx, invert=True))
-            if len(ix[0]) == 0:  # 最后一个人直接上车
-                carorder.append(tmpcarorder)
-                break
+            if firstPassengerIdx in neighborhoodIdxVec:
+                # 如果增加了人那么就判断是否坐满了
+                if numPassenger == CARSEATS or numPassenger == fivecarset:
+                    if numPassenger == fivecarset and restorderNum - len(allgetonthecaridx) == 1:
+                        lastpersonindex = np.argmax(keypointDistVec)
+                        if numPassenger + restSeatNoVec[lastpersonindex] == CARSEATS:
+                            carlastpersonloc = restorderLoc[firstPassengerIdx]
+                            lastpersonloc = restorderLoc[lastpersonindex]
+                            lastdistance = auxfn.calcDist(carlastpersonloc, lastpersonloc)
+                            if lastdistance <= SEARCHRADIUS:
+                                allgetonthecaridx.append(lastpersonindex)
+                                tmpcarorder.append(lastpersonindex)
+                    carorder.append(tmpcarorder)
+                    break  # 打破循环找一辆新车
+                # 如果没有增加人那么就寻找一个顺路的人
             else:
-                # 当前点side为1可以选择所有的点找周围的点，当前点为2就只能找2
-                currentside = restsideVec[firstPassengerIdx]
-                tmpnextPassengerIdx = auxfn.getSortedPointIdx(orderVec[ix[0], :],
-                                                                  orderVec[firstPassengerIdx, :],
-                                                                  restsideVec[ix[0]], currentside)
-                tmpPassengerIdx = [ix[0][y] for y in tmpnextPassengerIdx]
-                ontheway = dis.checkLongdiscondition(tmpcarorder, restorderLoc, tmpPassengerIdx)
-            # 周围没有人且顺路的人也没有那么就直接上车了
-            if len(ontheway) == 0:
-                carorder.append(tmpcarorder)
-                break
-            else:
-                # 车上没有6个人，周围有人，但是周围上车后车上最小的人数都大于6就结束循环叫新车或是最小的时间都大于限制
-                # 时间限制暂时没有写（后面加上速度后补上）
-                neighborGetOnCar = [restSeatNoVec[element] for element in ontheway]
-                carseatsWithNeighbor = np.array(neighborGetOnCar) + numPassenger
-                if carseatsWithNeighbor.min() > CARSEATS:
+                # 4、周围没有点那就寻找顺路的点，顺路的定义为，到机场的距离小于当前点且与机场之间的夹角小于15
+                ix = np.where(np.in1d(np.arange(restorderNum), allgetonthecaridx, invert=True))
+                if len(ix[0]) == 0:  # 最后一个人直接上车
                     carorder.append(tmpcarorder)
                     break
-            for npidx in ontheway:
-                if numPassenger + restSeatNoVec[npidx] <= CARSEATS:
-                    numPassenger += restSeatNoVec[npidx]
-                    allgetonthecaridx.append(npidx)
-                    tmpcarorder.append(npidx)
-                    firstPassengerIdx = npidx
-                    keypointDistVec[firstPassengerIdx] = 0
+                else:
+                    # 当前点side为1可以选择所有的点找周围的点，当前点为2就只能找2
+                    currentside = restsideVec[firstPassengerIdx]
+                    tmpnextPassengerIdx = auxfn.getSortedPointIdx(orderVec[ix[0], :],
+                                                                      orderVec[firstPassengerIdx, :],
+                                                                      restsideVec[ix[0]], currentside)
+                    ontheway = [ix[0][y] for y in tmpnextPassengerIdx]
+                    # ontheway = dis.checkLongdiscondition(tmpcarorder, restorderLoc, tmpPassengerIdx)
+                    # 周围没有人且顺路的人也没有那么就直接上车了
+                if len(ontheway) == 0:
+                    carorder.append(tmpcarorder)
                     break
-        else:
-            carorder.append(tmpcarorder)
+                else:
+                    # 车上没有6个人，周围有人，但是周围上车后车上最小的人数都大于6就结束循环叫新车或是最小的时间都大于限制
+                    # 时间限制暂时没有写（后面加上速度后补上）
+                    neighborGetOnCar = [restSeatNoVec[element] for element in ontheway]
+                    carseatsWithNeighbor = np.array(neighborGetOnCar) + numPassenger
+                    # 如果没有满足条件上车的人那么就直接上车
+                    if carseatsWithNeighbor.min() > CARSEATS:
+                        carorder.append(tmpcarorder)
+                        break
+                    # 一定会拿到一个人
+                    for npidx in ontheway:
+                        if numPassenger + restSeatNoVec[npidx] <= CARSEATS:
+                            numPassenger += restSeatNoVec[npidx]
+                            allgetonthecaridx.append(npidx)
+                            tmpcarorder.append(npidx)
+                            firstPassengerIdx = npidx
+                            keypointDistVec[firstPassengerIdx] = 0
+                            break
+                    # 如果增加了人那么判断是否够人，如果没有增加人那么说明周围已经没有人了
+                    if numPassenger == CARSEATS or numPassenger == fivecarset:
+                        if numPassenger == fivecarset and restorderNum - len(allgetonthecaridx) == 1:
+                            lastpersonindex = np.argmax(keypointDistVec)
+                            if numPassenger + restSeatNoVec[lastpersonindex] == CARSEATS:
+                                carlastpersonloc = restorderLoc[firstPassengerIdx]
+                                lastpersonloc = restorderLoc[lastpersonindex]
+                                lastdistance = auxfn.calcDist(carlastpersonloc, lastpersonloc)
+                                if lastdistance <= SEARCHRADIUS:
+                                    allgetonthecaridx.append(lastpersonindex)
+                                    tmpcarorder.append(lastpersonindex)
+                        carorder.append(tmpcarorder)
+                        break  # 打破循环找一辆新车
     carOrderList = dis.getThePassengerOrderForEachCar(carorder, restorderNo)
     return carOrderList
 

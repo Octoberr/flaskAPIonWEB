@@ -8,7 +8,6 @@ May 15, 2017
 """
 
 
-
 def zeros(rows, cols):
     row = []
     data = []
@@ -17,6 +16,7 @@ def zeros(rows, cols):
     for i in range(rows):
         data.append(row[:])
     return data
+
 
 def getItemsUsed(w, c):
     # item count
@@ -41,7 +41,9 @@ def getItemsUsed(w, c):
 
 # w = list of item weight or cost
 # W = max weight or max cost for the knapsack
-def  zeroOneKnapsack(w, W):
+
+
+def zeroOneKnapsack(w, W):
     # c is the cost matrix
     c = []
     n = len(w)

@@ -24,18 +24,17 @@ import mapAPI
 from recomTimeOnTheBus import eastandwestside
 from recomTimeOnTheBus import getneighbor
 
-AMAPAIRPORTCOORDINATE = [30.574590, 103.955020]
+# BMAPAIRPORTCOORDINATE = [30.574590, 103.955020]
 MAXSEATNUM5 = 5
 MAXSEATNUM6 = 6
 NORTH = 30.604043
-CHENGDULAT = 30.6
-LONGDISlIMT = 4500
-SEARCHLOOP = 500
+# CHENGDULAT = 30.6
+# LONGDISlIMT = 4500
+# SEARCHLOOP = 500
 # 经度分割(百度)
 longDistinguish = 104.074086
 # 西北边3000米
 westradius = 3000
-highlat = 30.674533
 
 
 class DIST:
@@ -366,22 +365,22 @@ class DIST:
             return True
         else:
             return False
-
-    def checkLongdiscondition(self, currenPasIdxVec, allOrderLoc, nexpasIdx):
-        nextpassenger = []
-        for i in xrange(len(nexpasIdx)):
-            longDist = 0
-            if len(currenPasIdxVec) == 1:
-                longDist += auxfn.calcDist((CHENGDULAT, allOrderLoc[currenPasIdxVec[0]][1]), (CHENGDULAT, allOrderLoc[nexpasIdx[i]][1]))
-            else:
-                for j in xrange(len(currenPasIdxVec)):
-                    longDist += auxfn.calcDist((CHENGDULAT, allOrderLoc[currenPasIdxVec[j]][1]), ((CHENGDULAT, allOrderLoc[currenPasIdxVec[j+1]][1])))
-                    if j+1 == len(currenPasIdxVec)-1:
-                        longDist += auxfn.calcDist((CHENGDULAT, allOrderLoc[currenPasIdxVec[j+1]][1]), (CHENGDULAT, allOrderLoc[nexpasIdx[i]][1]))
-                        break
-            if longDist <= LONGDISlIMT:
-                nextpassenger.append(nexpasIdx[i])
-        return nextpassenger
+    # 计算所有订单的直线距离
+    # def checkLongdiscondition(self, currenPasIdxVec, allOrderLoc, nexpasIdx):
+    #     nextpassenger = []
+    #     for i in xrange(len(nexpasIdx)):
+    #         longDist = 0
+    #         if len(currenPasIdxVec) == 1:
+    #             longDist += auxfn.calcDist((CHENGDULAT, allOrderLoc[currenPasIdxVec[0]][1]), (CHENGDULAT, allOrderLoc[nexpasIdx[i]][1]))
+    #         else:
+    #             for j in xrange(len(currenPasIdxVec)):
+    #                 longDist += auxfn.calcDist((CHENGDULAT, allOrderLoc[currenPasIdxVec[j]][1]), ((CHENGDULAT, allOrderLoc[currenPasIdxVec[j+1]][1])))
+    #                 if j+1 == len(currenPasIdxVec)-1:
+    #                     longDist += auxfn.calcDist((CHENGDULAT, allOrderLoc[currenPasIdxVec[j+1]][1]), (CHENGDULAT, allOrderLoc[nexpasIdx[i]][1]))
+    #                     break
+    #         if longDist <= LONGDISlIMT:
+    #             nextpassenger.append(nexpasIdx[i])
+    #     return nextpassenger
 
     # 将orderLocList=[(lat1,lng1),(lat2,lng2)]，转换为2-Darray orderLocVec = [[lat1 lng],[lat2 lng2]]
     def getOrderLocVec(self, orderLocList):
@@ -441,25 +440,25 @@ class DIST:
         return ret
 
     # 获得已经上车的乘客的时间距离getonthecarloc=[(lat1,lng1),(lat2,lng2)],getonthecarorderid=[[A,B,C],[D,E]]
-    def gethasgotonthecartimedistance(self, getonthecarloc, getonthecarorderid):
-        GTI = mapAPI.AMapAPI()
-        if len(getonthecarloc) is not 1:
-            orderVec = self.getOrderLocVec(getonthecarloc)
-            orderNum = len(orderVec)
-        else:
-            orderVec = np.array([getonthecarloc[0][0], getonthecarloc[0][1]])
-            orderNum = len(getonthecarloc)
-        timedistancevec = GTI.getTimeDistVec(AMAPAIRPORTCOORDINATE, orderVec, orderNum)
-        hasgetonthecarorderandtime = []    # [[[a,878],[b,788],[c,898]],[[d,658],[e,345]]]
-        for i in range(orderNum):
-            car = []
-            for j in range(len(getonthecarorderid[i])):
-                tmp = []
-                tmp.append(getonthecarorderid[i][j])
-                tmp.append(timedistancevec[i])
-                car.append(tmp)
-            hasgetonthecarorderandtime.append(car)
-        return hasgetonthecarorderandtime
+    # def gethasgotonthecartimedistance(self, getonthecarloc, getonthecarorderid):
+    #     GTI = mapAPI.AMapAPI()
+    #     if len(getonthecarloc) is not 1:
+    #         orderVec = self.getOrderLocVec(getonthecarloc)
+    #         orderNum = len(orderVec)
+    #     else:
+    #         orderVec = np.array([getonthecarloc[0][0], getonthecarloc[0][1]])
+    #         orderNum = len(getonthecarloc)
+    #     timedistancevec = GTI.getTimeDistVec(BMAPAIRPORTCOORDINATE, orderVec, orderNum)
+    #     hasgetonthecarorderandtime = []    # [[[a,878],[b,788],[c,898]],[[d,658],[e,345]]]
+    #     for i in range(orderNum):
+    #         car = []
+    #         for j in range(len(getonthecarorderid[i])):
+    #             tmp = []
+    #             tmp.append(getonthecarorderid[i][j])
+    #             tmp.append(timedistancevec[i])
+    #             car.append(tmp)
+    #         hasgetonthecarorderandtime.append(car)
+    #     return hasgetonthecarorderandtime
 
     # 超过7人排班后剩下的人中排班
     def anothereastcourn(self, allid, allloc, allseatNo, eastoutID, eastoutLoc, eastoutseatNo, getonthecar):
@@ -1237,22 +1236,10 @@ class DIST:
             getonthcar.append(outcar)
             return
 
-    # 使用tsp算法进行排序（f**k this tsp）
-    # def sortPassenger(self, carList, northOrderLoc):
-    #     sortcarList =[]
-    #     for element in carList:
-    #         onecarpassenger = []
-    #         for element2 in element:
-    #             onecarpassenger.append(northOrderLoc[element2])
-    #         t = tsp(onecarpassenger)
-    #         t.solve()
-    #         sortcarList.append(t.result)
-    #     return sortcarList
     # 对区域内的点进行到当前点的距离的排序选取一个最小的点
-    def getthesameareapointdistance(self, arealoclist, firstPassengerIdx, allgetonthecaridx, restorderLoc):
-        currentarea = arealoclist[firstPassengerIdx]
+    def getthesameareapointdistance(self, arealoclist, firstPassengerIdx, currentarea, allgetonthecaridx, restorderLoc):
         neighborareaindex = [a for a in range(len(arealoclist)) if arealoclist[a] == currentarea and a not in allgetonthecaridx]
-        neighborareaindexlength  = len(neighborareaindex)
+        neighborareaindexlength = len(neighborareaindex)
         if neighborareaindexlength == 0:
             return None
         elif neighborareaindexlength == 1:
@@ -1264,5 +1251,53 @@ class DIST:
             # 对当前区域到当前点的距离排序得到的排序后的index
             locsortidx = [idx for (loc, idx) in sorted(zip(locdisvec, neighborareaindex))]
             return locsortidx
+
+    def quescheduel(self, carOrderList, restorderNo, restorderLoc):
+        jichang = [30.599722, 104.04031] # 机场
+        newcaorderlsit = []
+        carloclist = []
+        for car in carOrderList:
+            tmploclist = []
+            for order in car:
+                for i in range(len(restorderLoc)):
+                    if order in restorderNo[i]:
+                        tmploclist.append(restorderLoc[i])
+            carloclist.append(tmploclist)
+        # carorderlist 和 carloclist现在是一一对应的了
+        for element in range(len(carOrderList)):
+            numorder = len(carOrderList[element])
+            if numorder > 2:
+                waitlist = copy.copy(carloclist[element])
+                orderVec = self.getOrderLocVec(waitlist)
+                distDistVec = auxfn.calcDistVec(jichang, orderVec)
+                currentpointidx = np.argsort(distDistVec)[0]
+                quenelsit = [currentpointidx]
+                for n in range(len(waitlist)):
+                    distDistVec = auxfn.calcDistVec(waitlist[currentpointidx], orderVec)
+                    getthesortedindex = np.argsort(distDistVec)
+                    notgetindex = getthesortedindex[np.in1d(getthesortedindex, quenelsit, invert=True)]
+                    quenelsit.append(notgetindex[0])
+                    if len(waitlist) == 2:
+                        break
+                    currentpointidx = notgetindex[0]
+                    if len(waitlist) - len(quenelsit) == 1:
+                        quenelsit.append(notgetindex[1])
+                        break
+                # from tsp_solver.greedy import solve_tsp
+                # solve_tsp problem 
+                # waitdisvec = np.zeros([numorder, numorder])
+                # for i in range(numorder):
+                #     for j in range(numorder):
+                #         waitdisvec[i, j] = auxfn.calcDist(waitlist[i], waitlist[j])
+                # bestpath = solve_tsp(waitdisvec)
+                tmpneworderlist = [carOrderList[element][tpno] for tpno in reversed(quenelsit)]
+                newcaorderlsit.append(tmpneworderlist)
+            else:
+                newcaorderlsit.append(carOrderList[element])
+        return newcaorderlsit
+
+
+
+
 
 

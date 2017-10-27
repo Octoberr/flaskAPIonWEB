@@ -26,7 +26,10 @@ TIANFUSQUIRE = [30.604043, 104.074086]
 
 filedir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) + "/" + "area"
 filename = ['region1.dbf', 'region2.dbf', 'region3.dbf', 'region4.dbf', 'region5.dbf', 'region6.dbf']
-TimeTableInfoURL = 'https://prerelease.jichangzhuanxian.com/api/ShiftTime/GetShiftTimeByTakeOffTime'
+# 测试环境
+# TimeTableInfoURL = 'https://prerelease.jichangzhuanxian.com/api/ShiftTime/GetShiftTimeByTakeOffTime'
+# 正式环境
+TimeTableInfoURL = 'https://mgr.jichangzhuanxian.com/api/ShiftTime/GetShiftTimeByTakeOffTime'
 
 
 class TIMEANDAREA:
@@ -172,7 +175,6 @@ class RECOMDTIME:
         # print "jsondata", jsondatar
         return jsondatar
         # return txtname
-
 
     def gettheordertime(self):
         polys = sf.Reader("shapefiles/test/wholeArea.shp")
